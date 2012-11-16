@@ -1,0 +1,63 @@
+8
+
+dir
+41
+svn://localhost/matrix/lib
+svn://localhost
+
+
+
+2007-09-22T02:41:42.260908Z
+37
+
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+35d9d545-b11e-4ba8-bde4-25d412936924
+
+gps.py
+file
+
+
+
+
+2007-09-22T02:51:55.000000Z
+0fcc42caf72e9fe77222cdc82aaaf473
+2007-09-22T02:41:42.260908Z
+37
+
+path.py
+file
+
+
+
+
+2007-09-22T02:51:55.000000Z
+9ae93736f9845827aed23bcfa0aaa6ea
+2007-09-05T02:59:34.326067Z
+20
+
+has-props
+
+__init__.py
+file
+
+
+
+
+2007-09-22T02:51:55.000000Z
+d41d8cd98f00b204e9800998ecf8427e
+2007-09-16T23:25:21.488364Z
+36
+

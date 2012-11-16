@@ -1,0 +1,273 @@
+import random           # FOR RANDOM BEGINNINGS
+import math
+import time
+
+WALL = 0              # FROM SIDE IN PIXELS
+WALL_FORCE = 10         # ACCELERATION PER MOVE
+SPEED_LIMIT = 40       # FOR BOID VELOCITY
+BOID_RADIUS = 1         # FOR BOIDS IN PIXELS
+OFFSET_START = 50       # FROM WALL IN PIXELS
+FRAMES_PER_SEC = 30     # SCREEN UPDATE RATE
+WINDOWED = False        # MOVABLE PROGRAM
+
+################################################################################
+class Flock(object):
+    def __init__(self, w,h,numboids):
+        self.width = w
+        self.height = h
+        self.numboids = numboids
+        self.boids = []
+        self.build_boids()
+        self.move()
+        
+    def draw(self):
+        self.move()
+        return self.boids
+    
+    def move(self):
+        # Move all boids.
+        removed = False
+        for boid in self.boids[:]:
+
+            simulate_wall(self.width,self.height,boid)
+            boid.update_velocity(self.boids)
+            boid.move()
+
+            if True:
+                if boid.dead:
+                    boid.dead += 1
+                    #boid.alpha = float(400/boid.dead)
+                    if boid.dead == 100:
+                        self.boids.remove(boid)
+                        removed = True
+                else:
+                    if random.randint(0,1000) == 1:
+                        boid.dead = 1
+                        boid.color = ThreeD(1,1,1)
+                
+        if removed:
+            self.build_boids()
+            
+    def build_boids(self):
+        # Create boids variable.
+
+        while len(self.boids) < self.numboids:
+            color = ThreeD(max(0.1,random.random()),max(0.1,random.random()),max(0.1,random.random()))
+            self.boids.append(Boid(self.width, self.height, OFFSET_START, FRAMES_PER_SEC, color))
+
+def tend_to_place(place, boid):
+    return (place - boid.position) * 20
+
+def simulate_wall(w,h,boid):
+    # Create viewing boundaries.
+    if boid.position.x < WALL:
+        boid.velocity.x += WALL_FORCE
+    elif boid.position.x > w - WALL:
+        boid.velocity.x -= WALL_FORCE
+    if boid.position.y < WALL:
+        boid.velocity.y += WALL_FORCE
+    elif boid.position.y > h - WALL:
+        boid.velocity.y -= WALL_FORCE
+
+def limit_speed(boid):
+    # Limit boid speed.
+    if boid.velocity.mag() > SPEED_LIMIT:
+        boid.velocity /= boid.velocity.mag() / SPEED_LIMIT
+
+################################################################################
+
+# TWO DIMENTIONAL VECTOR CLASS
+
+class ThreeD:
+
+    def __init__(self, x, y, z=0):
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
+
+    def __repr__(self):
+        return 'ThreeD(%s, %s, %s)' % (self.x, self.y, self.z)
+
+    def __add__(self, other):
+        return ThreeD(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __sub__(self, other):
+        return ThreeD(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __mul__(self, other):
+        return ThreeD(self.x * other, self.y * other, self.z * other)
+
+    def __div__(self, other):
+        return ThreeD(self.x / other, self.y / other, self.z / other)
+
+    def __iadd__(self, other):
+        self.x += other.x
+        self.y += other.y
+        self.z += other.z
+        return self
+
+    def __isub__(self, other):
+        self.x -= other.x
+        self.y -= other.y
+        self.z -= other.z
+        return self
+
+    def __idiv__(self, other):
+        self.x /= other
+        self.y /= other
+        self.z /= other
+        return self
+
+    def mag(self):
+        return ((self.x ** 2) + (self.y ** 2) + (self.z ** 2)) ** 0.5
+
+    def distance(self,other):
+        return math.sqrt((self.x-other.x)**2 + (self.y-other.y)**2 + (self.z-other.z)**2)
+
+    def cross(self):
+        a,b,c = self.x, self.y, self.z
+        d,e,f = 0, 1, 0
+        return (b*f-c*e)+(c*d-a*f)+(a*e-b*d)
+
+    def angle(self):
+        dist = self.mag()
+        mult = 1
+        if self.y < 0:
+            mult = -1
+        cross = self.cross()
+        if dist == 0:
+            dist = 1
+
+        cd = cross/dist
+        if cd >= 1 or cd <= -1:
+            return 0.0
+        rads = math.acos(cd)
+        angle = math.degrees(rads) * mult
+        return (360+angle) % 360
+    
+    # percentage of closeness
+    def sameness(self, other):
+        x = pow(self.x-other.x,2)
+        y = pow(self.y-other.y,2)
+        z = pow(self.z-other.z,2)
+        return (3-(x+y+z))/ 3
+
+################################################################################
+
+# BOID RULE IMPLEMENTATION CLASS
+
+class Boid:
+    def __init__(self, width, height, offset, move_divider, color):
+        self.velocity = ThreeD(random.randint(-SPEED_LIMIT,SPEED_LIMIT), random.randint(-SPEED_LIMIT,SPEED_LIMIT))
+        self.position = self.random_start(width,height,offset)
+	#ThreeD(random.randint(0,width), random.randint(0,height))
+        self.move_divider = move_divider * 5
+        self.color = color
+        self.alpha = 1
+        self.dead = 0
+
+    def get_x(self):
+        return self.position.x
+    def get_y(self):
+        return self.position.y
+    def get_z(self):
+        return self.position.z
+    def get_r(self):
+        return self.color.x
+    def get_g(self):
+        return self.color.y
+    def get_b(self):
+        return self.color.z
+    def get_angle(self):
+        return self.velocity.angle()
+
+    x = property(fget = get_x)
+    y = property(fget = get_y)
+    z = property(fget = get_z)
+    r = property(fget = get_r)
+    g = property(fget = get_g)
+    b = property(fget = get_b)
+    angle = property(fget = get_angle)
+
+    def update_velocity(self, boids):
+        v1 = self.rule1(boids)
+        v2 = self.rule2(boids)
+        v3 = self.rule3(boids)
+        self.__temp = v1 + v2 + v3
+
+    def move(self):
+        self.velocity += self.__temp
+        limit_speed(self)
+        self.position += self.velocity / self.move_divider
+
+    def rule1(self, boids):
+        # clumping
+        vector = ThreeD(0, 0)
+        numsame = 0
+        for boid in boids:
+            if boid is not self:
+                if (self.position - boid.position).mag() < 3:
+                    weight = self.color.sameness(boid.color)
+                    if weight > 0.9:
+                        vector += boid.position * weight
+                        numsame += 1
+        if numsame == 0:
+            return vector
+        vector /= numsame or 1
+        return (vector - self.position) / 7.5
+
+    def rule2(self, boids):
+        # avoidance
+        vector = ThreeD(0, 0)
+        for boid in boids:
+            if boid is not self:
+                if (self.position - boid.position).mag() < 2:
+                    weight = 1 + (1 / self.color.sameness(boid.color))
+                    vector -= (boid.position - self.position) * weight
+        return vector * 1.5
+
+    def rule3(self, boids):
+        # schooling
+        vector = ThreeD(0, 0)
+        numsame = 0
+        for boid in boids:
+            if boid is not self:
+                if (self.position - boid.position).mag() < 3:
+                    weight = self.color.sameness(boid.color)
+                    if weight > 0.9:
+                        vector += boid.velocity * weight
+                        numsame += 1
+                    self.color = (self.color + boid.color) / 2
+        if numsame == 0:
+            return vector
+        vector /= numsame or 1
+        return (vector - self.velocity) / 8
+
+    def random_start(self, width, height, offset):
+        if random.randint(0, 1):
+            # along left and right
+            y = random.randint(1, height)
+            if random.randint(0, 1):
+                # along left
+                x = -offset
+            else:
+                # along right
+                x = width + offset
+        else:
+            # along top and bottom
+            x = random.randint(1, width)
+            if random.randint(0, 1):
+                # along top
+                y = -offset
+            else:
+                # along bottom
+                y = height + offset
+        return ThreeD(x, y, z)
+
+################################################################################
+
+# Execute the simulation.
+if __name__ == '__main__':
+    main()
+
+

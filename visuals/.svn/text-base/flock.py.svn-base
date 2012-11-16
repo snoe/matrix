@@ -1,0 +1,292 @@
+from numpy import *
+import math
+import sys
+import Image
+import random           # FOR RANDOM BEGINNINGS
+
+try:
+    from OpenGL.GL import *
+    from OpenGL.GLU import *
+    from OpenGL.GLUT import *
+    haveOpenGL = True
+except ImportError:
+    haveOpenGL = False
+
+WALL = 10              # FROM SIDE IN PIXELS
+WALL_FORCE = 10         # ACCELERATION PER MOVE
+SPEED_LIMIT = 200       # FOR BOID VELOCITY
+BOID_RADIUS = 1         # FOR BOIDS IN PIXELS
+OFFSET_START = 0       # FROM WALL IN PIXELS
+FRAMES_PER_SEC = 20     # SCREEN UPDATE RATE
+WINDOWED = False        # MOVABLE PROGRAM
+NUMBER = 80
+
+################################################################################
+class Flock(object):
+    def __init__(self, w,h,numboids):
+        self.width = w
+        self.height = h
+        self.numboids = numboids
+        self.boids = []
+        self.build_boids()
+        self.move()
+        
+    def update(self):
+        self.move()
+        return self.boids
+    
+    def move(self):
+        # Move all boids.
+        for boid in self.boids[:]:
+            simulate_wall(self.width,self.height,boid)
+            boid.update_velocity(self.boids)
+            boid.move()
+
+    def build_boids(self):
+        # Create boids variable.
+
+        while len(self.boids) < self.numboids:
+            color = new_color()
+            self.boids.append(Boid('x', self.width, self.height, OFFSET_START, FRAMES_PER_SEC, color))
+
+def new_color():
+
+    a = [0.5,0,0]
+    b = [0.5,0.3,0.4]
+    c = [0.2,0.1,0.1]
+    colors = [a,b,c]
+    random.shuffle(colors)
+    return colors[0]
+
+def tend_to_place(place, boid):
+    return (place - boid.position) * 20
+
+def simulate_wall(w,h,boid):
+    # Create viewing boundaries.
+    if boid.position[0] < WALL:
+        boid.velocity[0] += WALL_FORCE
+    elif boid.position[0] > w - WALL:
+        boid.velocity[0] -= WALL_FORCE
+    if boid.position[1] < WALL:
+        boid.velocity[1] += WALL_FORCE
+    elif boid.position[1] > h - WALL:
+        boid.velocity[1] -= WALL_FORCE
+
+def limit_speed(boid):
+    # Limit boid speed.
+    m = mag(boid.velocity)
+    if m > SPEED_LIMIT:
+        boid.velocity /= m / SPEED_LIMIT
+
+def mag(v):
+    return math.sqrt(abs(dot(v,v)))
+        
+# percentage of closeness
+def sameness(this, other):
+    x = pow(this[0]-other[0],2)
+    y = pow(this[1]-other[1],2)
+    z = pow(this[2]-other[2],2)
+    return (3-(x+y+z))/ 3
+
+def normalize(v):
+    length = len(v)
+    return array([v[0] / length, v[1] / length, v[2] / length])
+################################################################################
+
+# BOID RULE IMPLEMENTATION CLASS
+
+class Boid:
+    def __init__(self, bid, width, height, offset, move_divider, color):
+        self.bid = bid
+        self.velocity = array([random.randint(-SPEED_LIMIT,SPEED_LIMIT),
+                               random.randint(-SPEED_LIMIT,SPEED_LIMIT),
+                               0.0])
+        #self.position = self.random_start(width,height,offset)
+	self.position = array([random.randint(0,width), random.randint(0,height), 0.0])
+        self.move_divider = move_divider * 5
+        self.color = color
+        self.alpha = 1
+        self.life = 1
+
+    def get_x(self):
+        return self.position[0]
+    def get_y(self):
+        return self.position[1]
+    def get_z(self):
+        return self.position[2]
+    def get_r(self):
+        return self.color[0]
+    def get_g(self):
+        return self.color[1]
+    def get_b(self):
+        return self.color[2]
+    def get_angle(self):
+        ref = array([0.0,1.0,0.0])
+        v = self.velocity
+        d = dot(v,ref)
+        m = mag(v)*mag(ref)
+
+        ret = math.degrees(math.acos(d/m))
+        if v[0] > 0:
+            ret *= -1
+        return ret
+
+    x = property(fget = get_x)
+    y = property(fget = get_y)
+    z = property(fget = get_z)
+    r = property(fget = get_r)
+    g = property(fget = get_g)
+    b = property(fget = get_b)
+    angle = property(fget = get_angle)
+
+    def update_velocity(self, boids):
+        v1,v2,v3 = self.apply_rules(boids)
+        self.__temp = v1 + v2 + v3
+
+    def move(self):
+        self.velocity += self.__temp
+        limit_speed(self)
+        self.position += self.velocity / self.move_divider
+        #self.color += new_color() * 0.05
+        #print self.position, self.velocity, self.__temp
+
+    def apply_rules(self, boids):
+
+        rule1_array = array([0.0, 0.0, 0.0])
+        rule1_numsame = 0
+
+        rule2_array = array([0.0, 0.0, 0.0])
+
+        rule3_array = array([0.0, 0.0, 0.0])
+        rule3_numsame = 0
+        avgmag = 0
+        avgnum = 0
+
+        for boid in boids:
+            if boid is not self:
+                p = self.position - boid.position
+                m = mag(p)
+                if m < 10:
+                    # avoidance
+                    if m < 3:
+                        rule2_array -= (boid.position - self.position) * 10
+                        
+                    if self.color == boid.color:
+                        # clumping
+                        rule1_array += boid.position
+                        rule1_numsame += 1
+
+                        # schooling
+                        rule3_array += boid.velocity
+                        rule3_numsame += 1
+
+        if rule3_numsame != 0:
+            rule3_array /= rule3_numsame or 1
+            rule3_array = (rule3_array - self.velocity) / 8
+        
+        if rule1_numsame != 0:
+            rule1_array /= rule1_numsame or 1
+            rule1_array =  (rule1_array - self.position) / 7.5
+
+        rule2_array = rule2_array * 1.5
+
+        return rule1_array, rule2_array, rule3_array
+
+    def random_start(self, width, height, offset):
+        if random.randint(0, 1):
+            # along left and right
+            y = random.randint(1, height)
+            if random.randint(0, 1):
+                # along left
+                x = -offset
+            else:
+                # along right
+                x = width + offset
+        else:
+            # along top and bottom
+            x = random.randint(1, width)
+            if random.randint(0, 1):
+                # along top
+                y = -offset
+            else:
+                # along bottom
+                y = height + offset
+        return array([x, y, 0]).astype(float)
+
+################################################################################
+def ReSizeGLScene(Width, Height):    
+    global draw_depth
+    global draw_h
+    global draw_w
+    
+    if Height == 0:						# Prevent A Divide By Zero If The Window Is Too Small 
+        Height = 1
+
+    glViewport(0, 0, Width, Height)		# Reset The Current Viewport And Perspective Transformation
+    glMatrixMode(GL_PROJECTION)
+
+    glLoadIdentity()
+    # 90 degree FOV vertically
+    # if we are drawing into the screen at x units
+    # - viewable height will be x*2 units
+    # - viewable width will be x*2*ratio
+    ratio = float(Width)/float(Height)
+    draw_depth = 50
+    draw_h = draw_depth * 2
+    draw_w = int(draw_h * ratio)
+
+    glOrtho(0,draw_w,0,draw_h,-100,100);
+    #gluPerspective(90.0, Ratio, 1.0, deep * 10)
+    glMatrixMode(GL_MODELVIEW)
+
+def InitGL(Width, Height):
+    global flock
+    
+    import utility
+    utility.LoadTextures()
+    glEnable(GL_TEXTURE_2D)
+    glClearColor(0.0, 0.0, 0.0, 0.0)	# This Will Clear The Background Color To Black
+    glClearDepth(1.0)					# Enables Clearing Of The Depth Buffer
+    glDepthFunc(GL_LESS)				# The Type Of Depth Test To Do
+    glEnable(GL_DEPTH_TEST)				# Enables Depth Testing
+    glEnable(GL_BLEND)				# Enables Depth Testing
+    glShadeModel(GL_SMOOTH)				# Enables Smooth Color Shading
+
+    ReSizeGLScene(Width, Height)
+    flock = Flock(draw_w,draw_h,NUMBER)
+
+
+def Draw():
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)	# Clear The Screen And The Depth Buffer
+    xoffset = -1 * (draw_w/2)
+    yoffset = -1 * (draw_h/2)
+    zoffset = -1 * (draw_depth)
+
+    glLoadIdentity()					# Reset The View
+
+    particles = flock.update()
+    for particle in particles:
+        x = particle.x
+        y = particle.y
+        z = particle.z #+ zoffset
+
+        glPushMatrix()
+        glTranslatef(x,y,0)
+        glColor4f(particle.r,particle.g,particle.b,particle.life)
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE)
+        glRotatef(particle.angle,0,0,1)
+
+        psize = 1.0
+        glBegin(GL_TRIANGLE_STRIP)
+        glTexCoord2d(1,1)
+        glVertex3f(+psize,+psize,0) #// Top Right
+        glTexCoord2d(1,0)
+        glVertex3f(-psize,+psize,0) #// Top Left
+        glTexCoord2d(0,1)
+        glVertex3f(+psize,-psize,0) #// Bottom Right
+        glTexCoord2d(0,0)
+        glVertex3f(-psize,-psize,0) #// Bottom Left
+        glEnd()
+        glPopMatrix()
+
+

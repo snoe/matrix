@@ -1,0 +1,27 @@
+
+matrix.ini - sucks
+
+Player:
+        opengl
+        slideshow - resize large images
+        play from ipod
+
+Video:
+        focus issues - tab brings back control -- how to with only touch screen?
+
+GPS:
+        do not overwrite existing data - howto reset
+        distance travelled     
+        draw route
+        save as KML
+        force save to network location (email? ssh? configurable?)
+
+OBDII:      
+        everything
+
+Config screen:               
+        everything
+        data import - audio and video
+        set paths
+        set defaults
+        
